@@ -22,6 +22,7 @@ export type Pembelian = {
   username: string;
   zone: string;
   created_at: string;
+  accountID  : string
   updated_at: string;
 };
 

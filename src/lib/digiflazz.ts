@@ -8,6 +8,7 @@ interface TopUpRequest {
   userId: string;
   serverId?: string;
   productCode: string;
+  refid? : string
 }
 
 export class Digiflazz {
@@ -68,7 +69,7 @@ export class Digiflazz {
 
   async TopUp(topUpData: TopUpRequest) {
     try {
-      const refId = `TRX-${Date.now()}`;
+      const refId = topUpData.refid 
 
       const signature = crypto
         .createHash('md5')
@@ -83,6 +84,7 @@ export class Digiflazz {
         userId,
         serverId,
         productCode: topUpData.productCode,
+        refId
       });
 
       // Format customer_no based on what Digiflazz expects
@@ -124,7 +126,7 @@ export class Digiflazz {
         body: JSON.stringify(data),
       });
 
-      const result: TransactionType = await response.json();
+      const result = await response.json();
       console.log('Digiflazz response:', result);
 
       return result;

@@ -3,6 +3,7 @@ import { useParams } from 'next/navigation';
 import DetailsCategories from './details-categories';
 import { useEffect } from 'react';
 import { usePlansStore } from '@/hooks/use-select-plan';
+import { User } from '@/types/schema/user';
 
 export function OrderMainPage() {
   const { name } = useParams();

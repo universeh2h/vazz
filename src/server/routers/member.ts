@@ -2,8 +2,46 @@ import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { Prisma } from "@prisma/client";
 import { findUserById, findUserByUsername } from "@/app/(auth)/_components/api";
+import { auth } from "../../../auth";
 
 export const member = router({
+  findMe : publicProcedure.query(async({ctx}) => {
+    try {
+     const session = await auth()
+
+     if(!session){
+      return  {
+        status : false,
+        message : "Message retreived successfully"
+      }
+     }
+     const profile  = await ctx.prisma.users.findUnique({
+      where : {
+        id : session.user.id
+      },
+      select : {
+        deposit : true,
+        role : true,
+        id : true,
+        balance : true,
+        name : true,
+        username : true
+      }
+     }) 
+
+     if(!profile){
+      return  {
+        status : false,
+        message : "Message retreived successfully"
+      }
+     }
+
+     return profile
+    } catch (error) {
+      throw new Error(`Failed to fetch members: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+    }
+  }),
   findAll: publicProcedure.input(
     z.object({
       page: z.number(),
@@ -118,4 +156,37 @@ export const member = router({
         }
     }
   }),
+
+  finId :  publicProcedure
+  .input(z.object({
+    userId  : z.string()
+  }))
+  .query(async({ctx,input})  => {
+    try {
+      const user = await ctx.prisma.users.findUnique({
+        where : {
+          id : input.userId
+        }
+      })
+
+      if(!user){
+        return  {
+          status : false,
+          message : "User not found",
+          data : {}
+        }
+      }
+      return {
+        data : user,
+        status : true,
+        message : "User retreived successfully"
+      }
+    } catch (error) {
+      return {
+        status : false,
+        message : "User not found",
+        data : {}
+      }
+    }
+  })
 });

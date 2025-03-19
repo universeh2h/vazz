@@ -40,7 +40,6 @@ export default function DetailsCategories({ name }: { name: string }) {
   if (isLoading) {
     return <LoadingOverlay />;
   }
-  console.log(category);
   if (category === undefined || category === null) {
     return (
       <div className="min-h-screen w-full justify-center items-center text-white">

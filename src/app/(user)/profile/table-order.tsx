@@ -19,84 +19,32 @@ import {
 import { Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { useState } from 'react';
+import { trpc } from '@/utils/trpc';
 
-// Sample data - replace with your actual data
-const orders = [
-  {
-    id: 'INV-001',
-    service: 'Mobile Legends',
-    target: 'user123',
-    price: 'Rp 50.000',
-    status: 'completed',
-    date: '2023-05-15',
-  },
-  {
-    id: 'INV-002',
-    service: 'PUBG Mobile',
-    target: 'gamer456',
-    price: 'Rp 100.000',
-    status: 'pending',
-    date: '2023-05-16',
-  },
-  {
-    id: 'INV-003',
-    service: 'Free Fire',
-    target: 'player789',
-    price: 'Rp 25.000',
-    status: 'processing',
-    date: '2023-05-16',
-  },
-  {
-    id: 'INV-004',
-    service: 'Genshin Impact',
-    target: 'traveler101',
-    price: 'Rp 150.000',
-    status: 'completed',
-    date: '2023-05-14',
-  },
-  {
-    id: 'INV-005',
-    service: 'Valorant',
-    target: 'agent202',
-    price: 'Rp 75.000',
-    status: 'failed',
-    date: '2023-05-13',
-  },
-  {
-    id: 'INV-006',
-    service: 'Mobile Legends',
-    target: 'mlbb303',
-    price: 'Rp 200.000',
-    status: 'completed',
-    date: '2023-05-12',
-  },
-  {
-    id: 'INV-007',
-    service: 'Call of Duty Mobile',
-    target: 'soldier404',
-    price: 'Rp 125.000',
-    status: 'processing',
-    date: '2023-05-16',
-  },
-];
-
-export function TableOrder() {
+export function TableOrder({ search }: { search: string }) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const totalPages = Math.ceil(orders.length / itemsPerPage);
 
-  const paginatedOrders = orders.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const { data } = trpc.order.findByUser.useQuery({
+    page: currentPage,
+    perPage: itemsPerPage,
+    search
+  });
+
+  const transactions = data?.data || [];
+  const totalPages = data?.pagination.totalPages || 1;
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
+    switch (status.toUpperCase()) {
+      case 'SUCCESS':
         return (
-          <Badge className="bg-green-500 hover:bg-green-600">Completed</Badge>
+          <Badge className="bg-green-500 hover:bg-green-600">Success</Badge>
         );
-      case 'pending':
+      case 'PAID':
+        return (
+          <Badge className="bg-green-600 hover:bg-green-700">Paid</Badge>
+        );
+      case 'PENDING':
         return (
           <Badge
             variant="outline"
@@ -105,17 +53,38 @@ export function TableOrder() {
             Pending
           </Badge>
         );
-      case 'processing':
+      case 'PROCCES':
         return (
           <Badge variant="secondary" className="bg-blue-100 text-blue-800">
             Processing
           </Badge>
         );
-      case 'failed':
+      case 'FAILED':
         return <Badge variant="destructive">Failed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  // Function to format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Function to format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
   };
 
   return (
@@ -124,23 +93,25 @@ export function TableOrder() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted">
-              <TableHead className="w-[100px]">Invoice</TableHead>
-              <TableHead>Layanan</TableHead>
-              <TableHead>Target</TableHead>
-              <TableHead>Harga</TableHead>
+              <TableHead className="w-[120px]">Order ID</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Amount</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Detail</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedOrders.length > 0 ? (
-              paginatedOrders.map((order) => (
-                <TableRow key={order.id} className="hover:bg-muted/50">
-                  <TableCell className="font-medium">{order.id}</TableCell>
-                  <TableCell>{order.service}</TableCell>
-                  <TableCell>{order.target}</TableCell>
-                  <TableCell>{order.price}</TableCell>
-                  <TableCell>{getStatusBadge(order.status)}</TableCell>
+            {transactions.length > 0 ? (
+              transactions.map((transaction) => (
+                <TableRow key={transaction.id} className="hover:bg-muted/50">
+                  <TableCell className="font-medium">{transaction.merchantOrderId.split('-')[1]}</TableCell>
+                  <TableCell>{transaction.transactionType}</TableCell>
+                  <TableCell>{transaction.noWa}</TableCell>
+                  <TableCell>{formatCurrency(transaction.finalAmount)}</TableCell>
+                  <TableCell>{getStatusBadge(transaction.paymentStatus)}</TableCell>
+                  <TableCell>{formatDate(transaction.createdAt)}</TableCell>
                   <TableCell className="text-right">
                     <TooltipProvider>
                       <Tooltip>
@@ -149,13 +120,15 @@ export function TableOrder() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
+                            onClick={() => window.open(transaction.paymentUrl || '#', '_blank')}
+                            disabled={!transaction.paymentUrl}
                           >
                             <Eye className="h-4 w-4" />
                             <span className="sr-only">View details</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>View order details</p>
+                          <p>View payment details</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -164,8 +137,8 @@ export function TableOrder() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  No orders found.
+                <TableCell colSpan={7} className="h-24 text-center">
+                  No transactions found.
                 </TableCell>
               </TableRow>
             )}
@@ -205,4 +178,4 @@ export function TableOrder() {
       </div>
     </div>
   );
-}
+} 

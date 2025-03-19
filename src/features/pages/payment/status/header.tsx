@@ -1,5 +1,4 @@
 'use client';
-
 import { CheckCircle2, AlertCircle, Wallet, CreditCard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';

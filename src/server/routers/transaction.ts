@@ -39,7 +39,7 @@ export const transaction = router({
       return res;
     }),
 
-  getCalculatedTransaction: publicProcedure
+    getCalculatedTransaction: publicProcedure
     .input(
       z.object({
         status: z.string().optional(),
@@ -47,13 +47,18 @@ export const transaction = router({
     )
     .query(async ({ ctx, input }) => {
       const statusMap: Record<string, string> = {
-        success: 'PAID',
-        failed: 'FAILED',
-        pending: 'PENDING',
+        PAID: 'PAID',
+        FAILED: 'FAILED',
+        PENDING: 'PENDING',
+        SUCCESS: 'SUCCESS',
+        PROCESS: 'PROCESS', // Perbaikan typo di sini
       };
-
+      
+      console.log("Status yang diterima:", input.status);
       const paymentStatus = input.status ? statusMap[input.status] : undefined;
-
+      console.log("Status yang digunakan untuk query:", paymentStatus);
+      
+      // Tambahkan pengurutan berdasarkan tanggal terbaru
       return await ctx.prisma.transaction.findMany({
         where: paymentStatus
           ? {
@@ -62,6 +67,9 @@ export const transaction = router({
           : {},
         include: {
           invoice: true,
+        },
+        orderBy: {
+          createdAt: 'desc', // Mengurutkan dari terbaru ke terlama
         },
       });
     }),
@@ -161,44 +169,39 @@ export const transaction = router({
         ...transaction,
       }));
     }),
-  getTransactionStats: publicProcedure
+    getTransactionStats : publicProcedure
     .input(
       z
         .object({
-          startDate: z.string().optional(), // Changed from z.date() to z.string()
-          endDate: z.string().optional(), // Changed from z.date() to z.string()
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
           paymentStatus: z.string().optional(),
         })
-        .optional()
+        .optional(),
     )
     .query(async ({ ctx, input }) => {
       const parseDate = (dateString: string) => {
-        if (!dateString) return null;
-        const jakartaTimeZone = 'Asia/Jakarta';
-        const wibDate = new Date(dateString);
-        const utcDate = toZonedTime(wibDate, jakartaTimeZone);
+        if (!dateString) return null
+        const jakartaTimeZone = "Asia/Jakarta"
+        const wibDate = new Date(dateString)
+        const utcDate = toZonedTime(wibDate, jakartaTimeZone)
         if (isNaN(utcDate.getTime())) {
-          throw new Error('Invalid date');
+          throw new Error("Invalid date")
         }
-        return utcDate;
-      };
-
-      const endDate = parseDate(input?.endDate as string) || new Date();
-      const startDate =
-        parseDate(input?.startDate as string) ||
-        new Date(new Date().setDate(endDate.getDate() - 30));
-
-      console.log('Parsed dates:', { startDate, endDate });
-
-      console.log('Using date range:', { startDate, endDate });
-
+        return utcDate
+      }
+  
+      const endDate = parseDate(input?.endDate as string) || new Date()
+      const startDate = parseDate(input?.startDate as string) || new Date(new Date().setDate(endDate.getDate() - 30))
+  
+      console.log("Parsed dates:", { startDate, endDate })
+      console.log("Using date range:", { startDate, endDate })
+  
       // Previous period for comparison (same duration, immediately before)
-      const prevPeriodDuration = endDate.getTime() - startDate.getTime();
-      const prevPeriodEndDate = new Date(startDate);
-      const prevPeriodStartDate = new Date(
-        startDate.getTime() - prevPeriodDuration
-      );
-
+      const prevPeriodDuration = endDate.getTime() - startDate.getTime()
+      const prevPeriodEndDate = new Date(startDate)
+      const prevPeriodStartDate = new Date(startDate.getTime() - prevPeriodDuration)
+  
       const where = {
         createdAt: {
           gte: startDate,
@@ -207,9 +210,9 @@ export const transaction = router({
         ...(input?.paymentStatus && {
           paymentStatus: input.paymentStatus,
         }),
-      };
-
-      console.log('Where clause:', where);
+      }
+  
+      console.log("Where clause:", where)
       const prevPeriodWhere = {
         createdAt: {
           gte: prevPeriodStartDate,
@@ -218,116 +221,101 @@ export const transaction = router({
         ...(input?.paymentStatus && {
           paymentStatus: input.paymentStatus,
         }),
-      };
-
+      }
+  
       // Get total count of transactions - current period
-      const totalTransactions = await ctx.prisma.transaction.count({ where });
-
+      const totalTransactions = await ctx.prisma.transaction.count({ where })
+  
       // Get total count of transactions - previous period
       const prevPeriodTotalTransactions = await ctx.prisma.transaction.count({
         where: prevPeriodWhere,
-      });
-
+      })
+  
       // Calculate growth percentage for transactions
       const transactionGrowth =
         prevPeriodTotalTransactions > 0
-          ? ((totalTransactions - prevPeriodTotalTransactions) /
-              prevPeriodTotalTransactions) *
-            100
-          : 0;
-
-      // Get revenue data - current period
+          ? ((totalTransactions - prevPeriodTotalTransactions) / prevPeriodTotalTransactions) * 100
+          : 0
+  
+      // Get revenue data - current period (only count successful transactions)
       const revenueData = await ctx.prisma.transaction.aggregate({
         where: {
           ...where,
-          paymentStatus: 'success',
+          paymentStatus: "SUCCESS", // Changed from 'PAID' to 'success'
         },
         _sum: {
           finalAmount: true,
         },
-      });
-
-      // Get revenue data - previous period
+      })
+  
+      // Get revenue data - previous period (only count successful transactions)
       const prevPeriodRevenueData = await ctx.prisma.transaction.aggregate({
         where: {
           ...prevPeriodWhere,
-          paymentStatus: 'success',
+          paymentStatus: "SUCCESS", // Changed from 'PAID' to 'success'
         },
         _sum: {
           finalAmount: true,
         },
-      });
-
+      })
+  
       // Calculate growth percentage for revenue
-      const currentRevenue = revenueData._sum.finalAmount || 0;
-      const prevRevenue = prevPeriodRevenueData._sum.finalAmount || 0;
-      const revenueGrowth =
-        prevRevenue > 0
-          ? ((currentRevenue - prevRevenue) / prevRevenue) * 100
-          : 0;
-
+      const currentRevenue = revenueData._sum.finalAmount || 0
+      const prevRevenue = prevPeriodRevenueData._sum.finalAmount || 0
+      const revenueGrowth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
+  
       // Get success rate (successful transactions / total transactions)
+      // Now counting transactions with 'success' status
       const successfulTransactions = await ctx.prisma.transaction.count({
         where: {
           ...where,
-          paymentStatus: 'PAID',
+          paymentStatus: "SUCCESS", // Changed from 'PAID' to 'success'
         },
-      });
-
-      const successRate =
-        totalTransactions > 0
-          ? (successfulTransactions / totalTransactions) * 100
-          : 0;
-
+      })
+  
+      const successRate = totalTransactions > 0 ? (successfulTransactions / totalTransactions) * 100 : 0
+  
       // Get previous period success rate
       const prevSuccessfulTransactions = await ctx.prisma.transaction.count({
         where: {
           ...prevPeriodWhere,
-          paymentStatus: 'PAID',
+          paymentStatus: "SUCCESS", // Changed from 'PAID' to 'success'
         },
-      });
-
+      })
+  
       const prevSuccessRate =
-        prevPeriodTotalTransactions > 0
-          ? (prevSuccessfulTransactions / prevPeriodTotalTransactions) * 100
-          : 0;
-
+        prevPeriodTotalTransactions > 0 ? (prevSuccessfulTransactions / prevPeriodTotalTransactions) * 100 : 0
+  
       // Calculate growth percentage for success rate
-      const successRateGrowth =
-        prevSuccessRate > 0
-          ? ((successRate - prevSuccessRate) / prevSuccessRate) * 100
-          : 0;
-
+      const successRateGrowth = prevSuccessRate > 0 ? ((successRate - prevSuccessRate) / prevSuccessRate) * 100 : 0
+  
       // Get unique active users in current period
       const activeUsers = await ctx.prisma.transaction.groupBy({
-        by: ['userId'],
+        by: ["userId"],
         where,
         _count: {
           id: true,
         },
-      });
-
+      })
+  
       // Get unique active users in previous period
       const prevActiveUsers = await ctx.prisma.transaction.groupBy({
-        by: ['userId'],
+        by: ["userId"],
         where: prevPeriodWhere,
         _count: {
           id: true,
         },
-      });
-
+      })
+  
       // Calculate growth percentage for active users
-      const activeUsersCount = activeUsers.length;
-      const prevActiveUsersCount = prevActiveUsers.length;
+      const activeUsersCount = activeUsers.length
+      const prevActiveUsersCount = prevActiveUsers.length
       const activeUsersGrowth =
-        prevActiveUsersCount > 0
-          ? ((activeUsersCount - prevActiveUsersCount) / prevActiveUsersCount) *
-            100
-          : 0;
-
-      // Get transactions by status for charts
+        prevActiveUsersCount > 0 ? ((activeUsersCount - prevActiveUsersCount) / prevActiveUsersCount) * 100 : 0
+  
+      // Get transactions by status for charts - now will include all 5 statuses
       const transactionsByStatus = await ctx.prisma.transaction.groupBy({
-        by: ['paymentStatus'],
+        by: ["paymentStatus"],
         where,
         _count: {
           id: true,
@@ -335,13 +323,24 @@ export const transaction = router({
         _sum: {
           finalAmount: true,
         },
-      });
-
+      })
+  
+      // Ensure all 5 statuses are represented in the results
+      const allStatuses = ["PENDING", "PAID", "PROCESS", "SUCCESS", "FAILED"]
+      const formattedTransactionsByStatus = allStatuses.map((status) => {
+        const found = transactionsByStatus.find((t) => t.paymentStatus === status)
+        return {
+          status,
+          count: found ? found._count.id : 0,
+          amount: found && found._sum.finalAmount ? found._sum.finalAmount : 0,
+        }
+      })
+  
       // Get recent transactions for the table
       const recentTransactions = await ctx.prisma.transaction.findMany({
         where,
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         take: 10,
         include: {
@@ -354,38 +353,51 @@ export const transaction = router({
             },
           },
         },
-      });
-
+      })
+  
       // Get daily transaction data for time series chart
-      const today = new Date();
-      const last30Days = new Date(today);
-      last30Days.setDate(today.getDate() - 30);
-
+      // Updated to include all statuses in the query
+      const today = new Date()
+      const last30Days = new Date(today)
+      last30Days.setDate(today.getDate() - 30)
       const dailyTransactions = await ctx.prisma.$queryRaw`
       SELECT 
-      DATE(\`created_at\`) as date,
-        CAST(COUNT(*) AS CHAR) as count,
-        CAST(SUM(CASE WHEN \`payment_status\` = 'PAID' THEN \`final_amount\` ELSE 0 END) AS CHAR) as revenue
-      FROM \`transactions\`
-      WHERE \`created_at\` >= ${last30Days} AND \`created_at\` <= ${today}
-      GROUP BY DATE(\`created_at\`)
+        DATE(created_at) as date,
+        COUNT(*)::text as count,
+        SUM(CASE WHEN payment_status = 'SUCCESS' THEN final_amount ELSE 0 END)::text as revenue,
+        SUM(CASE WHEN payment_status = 'PENDING' THEN 1 ELSE 0 END)::text as pending_count,
+        SUM(CASE WHEN payment_status = 'PAID' THEN 1 ELSE 0 END)::text as paid_count,
+        SUM(CASE WHEN payment_status = 'PROCESS' THEN 1 ELSE 0 END)::text as process_count,
+        SUM(CASE WHEN payment_status = 'SUCCESS' THEN 1 ELSE 0 END)::text as success_count,
+        SUM(CASE WHEN payment_status = 'FAILED' THEN 1 ELSE 0 END)::text as failed_count
+      FROM transactions
+      WHERE created_at >= ${last30Days} AND created_at <= ${today}
+      GROUP BY DATE(created_at)
       ORDER BY date ASC
-`;
+    `
+  
+      // Calculate status distribution percentages
+      const statusDistribution = formattedTransactionsByStatus.map((status) => ({
+        ...status,
+        percentage: totalTransactions > 0 ? (status.count / totalTransactions) * 100 : 0,
+      }))
+  
       return {
         totalTransactions,
         totalRevenue: currentRevenue,
         successRate,
         activeUsers: activeUsersCount,
         growth: {
-          transactions: parseFloat(transactionGrowth.toFixed(1)),
-          revenue: parseFloat(revenueGrowth.toFixed(1)),
-          successRate: parseFloat(successRateGrowth.toFixed(1)),
-          activeUsers: parseFloat(activeUsersGrowth.toFixed(1)),
+          transactions: Number.parseFloat(transactionGrowth.toFixed(1)),
+          revenue: Number.parseFloat(revenueGrowth.toFixed(1)),
+          successRate: Number.parseFloat(successRateGrowth.toFixed(1)),
+          activeUsers: Number.parseFloat(activeUsersGrowth.toFixed(1)),
         },
-        transactionsByStatus,
+        transactionsByStatus: formattedTransactionsByStatus,
+        statusDistribution,
         recentTransactions,
         dailyTransactions,
-      };
+      }
     }),
   create: publicProcedure.input(orderSchema).query(async ({ ctx, input }) => {
     try {

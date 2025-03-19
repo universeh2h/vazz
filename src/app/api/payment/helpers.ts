@@ -14,3 +14,8 @@ export function getStatusMessage(resultCode: string): string {
       return 'Status Tidak Diketahui';
   }
 }
+
+
+export function GenerateMerchantOrderID(depositId : number,userid : string)  : string{
+  return  `DEP-${depositId}-${Date.now()}-${userid}`;
+}

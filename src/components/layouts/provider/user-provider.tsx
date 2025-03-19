@@ -6,6 +6,7 @@ import { Navbar } from '../navbar';
 import { User } from '@/types/schema/user';
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { findUserById } from '@/app/(auth)/_components/api';
+import { Footer } from '../footer';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   return <SessionProvider>{children}</SessionProvider>;
@@ -54,6 +55,7 @@ export function UserGuard({ children }: { children: ReactNode }) {
     <>
       <Navbar user={user as User} />
       {children}
+      <Footer />
     </>
   );
 }

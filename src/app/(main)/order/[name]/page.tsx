@@ -1,8 +1,14 @@
 import { JSX } from 'react';
-
 import { OrderMainPage } from '@/features/pages/order/main';
+import { Metadata } from 'next';
 
-export default function Page(): JSX.Element {
+export  const metadata : Metadata = {
+  title : "Order",
+  description  : 'Order Vazzuniverse adalah sebuah penyedia layanan top up games dengan harga termurah dan proses super instan. Dapatkan lebih banyak promo dan potongan harga dengan cara bergabung menjadi Reseller.'
+}
+
+
+export default async function Page():Promise<JSX.Element> {
   return (
     <>
       <OrderMainPage />

@@ -7,7 +7,6 @@ export async function GET() {
     const data = await res.json();
 
     const webdata = data.data.web;
-    console.log(webdata);
 
     // Create WebsiteConfig with required fields and data from API
     await prisma.websiteConfig.create({

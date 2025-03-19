@@ -2,6 +2,7 @@ import { GameType } from '@/data/check-code';
 import { CheckNickName } from '@/lib/check-nickname';
 import { publicProcedure, router } from '@/server/trpc';
 import { configWeb } from '@/types/schema/config_web';
+import { WebsiteConfig } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -75,4 +76,20 @@ export const ConfigWeb = router({
         throw error;
       }
     }),
+    getSetting :  publicProcedure.query(async({ctx})  => {
+      try {
+        const data =  await ctx.prisma.websiteConfig.findFirst() 
+           if(!data){
+            return null
+           }
+          return {
+            data : data,
+            status : true,
+            statusCode : 200,
+            message  : "config retreived successfully",
+          }
+      } catch (error) {
+       throw new Error("config not found")
+      }
+    })
 });

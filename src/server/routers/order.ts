@@ -4,6 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { auth } from '../../../auth';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
+import { findUserById } from '@/app/(auth)/_components/api';
 
 export const order = router({
   createManual: publicProcedure
@@ -51,9 +52,7 @@ export const order = router({
         //   pesanan manual
         return await ctx.prisma.transaction.create({
           data: {
-            categoryId: parseInt(input.categoryId),
             finalAmount: layanan.harga,
-            layananId: parseInt(input.layananId),
             noWa: input.whatsapp,
             paymentCode: 'MANUAL',
             transactionType: 'MANUAL',
@@ -157,4 +156,97 @@ export const order = router({
         };
       }
     }),
+
+    findByUser: publicProcedure
+    .input(z.object({
+      page: z.number(),
+      perPage: z.number(),
+      search: z.string()
+    }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const session = await auth();
+        const userId = session?.user.id;
+        
+        if (!userId) {
+          return {
+            status: false,
+            message: "Unauthorized: User not logged in",
+            statusCode: 401,
+            data: []
+          };
+        }
+        
+        const user = await findUserById(userId);
+        
+        if (!user) {
+          return {
+            status: false,
+            message: "User not found",
+            statusCode: 401,
+            data: []
+          };
+        }
+        
+        // Build the where clause
+        const where: Prisma.TransactionWhereInput = {
+          userId: user.id
+        };
+        
+        // Add search functionality based on your schema fields
+        if (input.search && input.search.trim() !== '') {
+          where.OR = [
+            { merchantOrderId: { contains: input.search } },
+            { paymentReference: { contains: input.search } },
+            { paymentStatus: { contains: input.search } },
+            { noWa: { contains: input.search } },
+            { invoice: {
+                some: {
+                  invoiceNumber: { contains: input.search }
+                }
+              }
+            }
+          ];
+        }
+        
+        // Calculate pagination
+        const skip = (input.page - 1) * input.perPage;
+        
+        // Get total count for pagination info
+        const totalCount = await ctx.prisma.transaction.count({ where });
+        
+        // Get paginated data
+        const transactions = await ctx.prisma.transaction.findMany({
+          where,
+          include: {
+            invoice: true
+          },
+          skip,
+          take: input.perPage,
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        return {
+          status: true,
+          message: "Transactions retrieved successfully",
+          statusCode: 200,
+          data: transactions,
+          pagination: {
+            total: totalCount,
+            page: input.page,
+            perPage: input.perPage,
+            totalPages: Math.ceil(totalCount / input.perPage)
+          }
+        };
+      } catch (error) {
+        console.error("Error in findByUser:", error);
+        return {
+          status: false,
+          message: `Error: ${error instanceof Error ? error.message : String(error)}`,
+          statusCode: 500,
+          data: [],
+          pagination : {}
+        };
+      }
+    })
 });

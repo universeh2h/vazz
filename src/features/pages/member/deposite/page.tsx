@@ -64,7 +64,6 @@ export function MemberDeposit() {
     }
   };
 
-  // Generate pagination numbers
 
   return (
     <main className="space-y-6 p-8">
@@ -108,7 +107,7 @@ export function MemberDeposit() {
                   <TableCell>
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium ${
-                        deposit.status === 'COMPLETED'
+                        deposit.status === 'SUCCESS'
                           ? 'bg-green-100 text-green-800'
                           : deposit.status === 'PENDING'
                           ? 'bg-yellow-100 text-yellow-800'

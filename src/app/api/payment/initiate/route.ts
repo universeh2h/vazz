@@ -11,11 +11,8 @@ import {
   DUITKU_RETURN_URL,
   DUITKU_API_KEY,
 } from '../types';
-import {
-  sendAdminNotification,
-  sendCustomerNotification,
-} from '@/lib/whatsapp-message';
-import { Prisma } from '@prisma/client';
+import { Digiflazz } from '@/lib/digiflazz';
+import { DIGI_KEY, DIGI_USERNAME } from '@/constants';
 
 export type RequestPayment = {
   noWa: string;
@@ -31,6 +28,7 @@ export type RequestPayment = {
 
 export async function POST(req: NextRequest) {
   try {
+    const digiflazz = new Digiflazz(DIGI_USERNAME, DIGI_KEY)
     // Dapatkan body dari request
     const body = await req.json();
 
@@ -75,6 +73,13 @@ export async function POST(req: NextRequest) {
     // Generate merchant order ID
     const randomStr = Math.random().toString(36).substring(2, 8);
     const merchantOrderId = 'ORD-' + Date.now() + '-' + randomStr;
+
+    // Generate a standardized payment reference format for all transaction types
+    const generatePaymentReference = (type: string) => {
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 8);
+      return `${type}-${timestamp}-${randomId}`;
+    };
 
     // Start a Prisma transaction
     return await prisma.$transaction(
@@ -199,21 +204,6 @@ export async function POST(req: NextRequest) {
 
         const paymentAmount = price;
 
-        // Check deposit availability if user is logged in
-        if (session?.user?.id) {
-          const checkDeposit = await CheckAvaibilityDeposit(
-            tx,
-            session.user.id,
-            paymentAmount
-          );
-          if (!checkDeposit.status) {
-            return NextResponse.json(
-              { message: 'Saldo Anda Tidak mencukupi' },
-              { status: 400 }
-            );
-          }
-        }
-
         // Create transaction record
         const transactionData = {
           merchantOrderId,
@@ -264,7 +254,7 @@ export async function POST(req: NextRequest) {
             status: 'PENDING',
             tipe_transaksi: typeTransaksi,
             username: session?.user?.username || 'Guest',
-            user_id: session?.user.id,
+            user_id: session?.user?.id,
             zone: serverId,
             provider_order_id: layanans?.providerId,
             nickname,
@@ -279,6 +269,95 @@ export async function POST(req: NextRequest) {
           await tx.voucher.update({
             where: { id: appliedVoucherId },
             data: { usageCount: { increment: 1 } },
+          });
+        }
+
+        // Check deposit availability if user is logged in
+        if (session?.user?.id && typeTransaksi === "DEPOSIT") {
+          await tx.users.update({
+            where: { id: session.user.id },
+            data: {
+              balance: {
+                decrement: paymentAmount
+              }
+            }
+          });
+
+          // Generate standardized payment reference for deposit
+          const paymentReference = generatePaymentReference('DEPOSIT');
+          
+          // Update transaction status to success
+          await tx.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              paymentStatus: 'PAID',
+              paymentReference,
+            }
+          });
+        
+          await tx.invoices.create({
+            data: {
+              invoiceNumber: `INV-${merchantOrderId}`,
+              transactionId: transaction.id,
+              userId: session.user.id,
+              subtotal: transaction.originalAmount,
+              discountAmount: transaction.discountAmount,
+              totalAmount: transaction.finalAmount,
+              status: 'PAID',
+              dueDate: new Date(),
+              paymentDate: new Date(),
+              termsAndConditions: 'Standard terms and conditions apply.',
+            },
+          });
+          
+          // Update pembelian status to success
+          await tx.pembelian.update({
+            where: { order_id: merchantOrderId },
+            data: { 
+              status: 'PAID',
+            }
+          });
+        
+          const reqtoDigi = await digiflazz.TopUp({
+            productCode: layanans?.providerId as string,
+            userId: accountId,
+            whatsapp: noWa,
+            serverId: serverId,
+            refid: paymentReference
+          });
+
+          const datas = reqtoDigi.data
+          if(datas) {            
+            await tx.pembelian.update({
+              where: { order_id: merchantOrderId },
+              data: { 
+                status: datas.status === 'Pending' ? 'PROCESS' : 
+                       datas.status === 'Sukses' ? 'SUCCESS' : 'FAILED',
+                sn: datas.sn,
+                ref_id: datas.ref_id
+              }
+            });
+            
+            // Also update the transaction record
+            await tx.transaction.update({
+              where: { id: transaction.id },
+              data: {
+                paymentStatus: datas.status === 'Pending' ? 'PROCESS' : 
+                              datas.status === 'Sukses' ? 'PAID' : 'FAILED',
+                statusMessage: datas.message,
+                paymentReference: datas.ref_id 
+              }
+            });
+          }
+          
+          // Return success response
+          return NextResponse.json({
+            reference: paymentReference,
+            statusCode: "00",
+            paymentUrl: `${process.env.NEXTAUTH_URL}/payment/status?merchantOrderId=${merchantOrderId}`,
+            statusMessage: "PROCESS",
+            merchantOrderId: merchantOrderId,
+            transactionId: transaction.id,
           });
         }
 
@@ -299,7 +378,7 @@ export async function POST(req: NextRequest) {
           merchantOrderId: merchantOrderId,
           productDetails: layanan,
           paymentMethod: paymentCode,
-          customerVaName: 'vazzuniverse',
+          customerVaName: nickname,
           phoneNumber: noWa,
           returnUrl: `${DUITKU_RETURN_URL}`,
           callbackUrl: DUITKU_CALLBACK_URL,
@@ -307,13 +386,6 @@ export async function POST(req: NextRequest) {
           expiryPeriod: DUITKU_EXPIRY_PERIOD,
         };
 
-        const methodName = await tx.methods.findFirst({
-          where: {
-            code: paymentCode,
-          },
-        });
-
-        console.log('Sending payload to Duitku:', payload);
 
         try {
           const response = await axios.post(
@@ -359,11 +431,14 @@ export async function POST(req: NextRequest) {
             );
           }
 
+      
+          const paymentReference = data.reference;
+
           // Update transaction with payment reference
           await tx.transaction.update({
             where: { id: transaction.id },
             data: {
-              paymentReference: data.reference,
+              paymentReference: paymentReference,
               paymentUrl: data.paymentUrl,
             },
           });
@@ -371,44 +446,13 @@ export async function POST(req: NextRequest) {
           // Update pembelian with reference ID
           await tx.pembelian.update({
             where: { order_id: merchantOrderId },
-            data: { ref_id: data.reference },
+            data: { ref_id: paymentReference },
           });
 
-          // Send notifications outside the transaction to avoid rollback if notification fails
-          setTimeout(async () => {
-            try {
-              await sendAdminNotification({
-                orderData: {
-                  amount: paymentAmount,
-                  link: data.paymentUrl,
-                  productName: layanan,
-                  status: 'PENDING',
-                  customerName: session?.user?.name || 'GUEST',
-                  method: methodName?.name,
-                  orderId: transaction.merchantOrderId,
-                  whatsapp: process.env.NOMOR_WA_ADMIN,
-                },
-              });
-
-              await sendCustomerNotification({
-                orderData: {
-                  amount: paymentAmount,
-                  link: data.paymentUrl,
-                  productName: layanan,
-                  status: 'PENDING',
-                  method: methodName?.name,
-                  orderId: transaction.merchantOrderId,
-                  whatsapp: noWa,
-                },
-              });
-            } catch (notificationError) {
-              console.error('Notification error:', notificationError);
-            }
-          }, 0);
-
+        
           return NextResponse.json({
             paymentUrl: data.paymentUrl,
-            reference: data.reference,
+            reference: paymentReference,
             statusCode: data.statusCode,
             statusMessage: data.statusMessage,
             merchantOrderId: merchantOrderId,
@@ -454,41 +498,5 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 }
     );
-  }
-}
-
-// Modified to use transaction
-async function CheckAvaibilityDeposit(
-  tx: Prisma.TransactionClient,
-  userid: string,
-  amount: number
-) {
-  try {
-    const check = await tx.users.findFirst({
-      where: {
-        id: userid,
-      },
-    });
-
-    if (!check) {
-      return {
-        status: false,
-      };
-    }
-
-    if (check.balance < amount) {
-      return {
-        status: false,
-      };
-    }
-
-    return {
-      status: true,
-    };
-  } catch (error) {
-    return {
-      error: error,
-      status: false,
-    };
   }
 }

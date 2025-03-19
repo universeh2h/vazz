@@ -3,6 +3,7 @@ import { publicProcedure, router } from '../trpc';
 import { Prisma } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { auth } from '../../../auth';
+import { findUserById} from '@/app/(auth)/_components/api';
 
 export const Deposits = router({
   getAll: publicProcedure
@@ -59,41 +60,65 @@ export const Deposits = router({
         throw new Error(`Internal Server Erorr`);
       }
     }),
-  getByUsername: publicProcedure.query(async ({ ctx }) => {
-    try {
-      const session = await auth();
-      if (!session) {
+    getByUsername: publicProcedure.query(async ({ ctx }) => {
+      try {
+        const session = await auth();
+        if (!session?.user?.id) {
+          return {
+            status: false,
+            message: 'Unauthorized',
+            statusCode: 401,
+            data: [] // Add empty data array for consistency
+          };
+        }
+        
+        const user = await findUserById(session.user.id as string);
+        
+        if (!user?.username) {
+          return {
+            status: false,
+            message: 'User not found or username not set',
+            statusCode: 404,
+            data: []
+          };
+        }
+        
+        const data = await ctx.prisma.deposits.findMany({
+          where: {
+            username: user.username
+          },
+          orderBy: {
+            createdAt : 'desc'
+          }
+        });
+        
+        return {
+          data : {
+            deposit : data,
+            user : user
+          },
+          status: true,
+          statusCode: 200,
+          message: 'Deposits retrieved successfully'
+        };
+      } catch (error) {
+        console.error('Error in getByUsername:', error);
+        
+        if (error instanceof TRPCError) {
+          return {
+            status: false,
+            message: error.message,
+            statusCode: 400,
+            data: []
+          };
+        }
+        
         return {
           status: false,
-          message: 'Unauthorized',
-          statusCode: 401,
+          message: 'Internal Server Error',
+          statusCode: 500,
+          data: []
         };
       }
-      const data = await ctx.prisma.deposits.findMany({
-        where: {
-          username: session?.user.username,
-        },
-      });
-
-      return {
-        data,
-        status: true,
-        statusCode: 200,
-      };
-    } catch (error) {
-      if (error instanceof TRPCError) {
-        console.error('error : ', error.message);
-        return {
-          status: false,
-          message: error.message,
-          statusCode: 400,
-        };
-      }
-      return {
-        status: false,
-        message: 'Internal Server Error',
-        statusCode: 500,
-      };
-    }
-  }),
+    })
 });

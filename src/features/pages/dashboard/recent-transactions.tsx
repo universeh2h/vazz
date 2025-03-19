@@ -1,68 +1,55 @@
-'use client';
+"use client"
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { TransactionWithUser } from '@/types/transaction';
-import { formatDate, FormatPrice } from '@/utils/formatPrice';
-import { CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { FormatPrice } from "@/utils/formatPrice"
+import { format } from "date-fns"
 
-export function RecentTransactions({
-  transaction,
-}: {
-  transaction: TransactionWithUser;
-}) {
+interface RecentTransactionsProps {
+  transaction: any
+}
+
+export function RecentTransactions({ transaction }: RecentTransactionsProps) {
+  const statusColors: Record<string, string> = {
+  PENDING: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+    PAID: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+    PROCESS: "bg-purple-100 text-purple-800 hover:bg-purple-100",
+    SUCCESS: "bg-green-100 text-green-800 hover:bg-green-100",
+    FAILED :  "bg-red-100 text-red-800 hover:bg-red-100",
+  }
+
+  const status = transaction.paymentStatus.toLowerCase()
+  const userName = transaction.user?.name || "Guest"
+  const userInitials = userName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-card">
+    <div className="flex items-center justify-between rounded-lg border p-4">
       <div className="flex items-center gap-4">
-        <Avatar className="h-10 w-10 bg-primary/10">
-          <AvatarFallback className="text-primary">
-            {transaction?.user?.name ??
-              'Anonymous User'
-                .split(' ')
-                .map((n) => n[0])
-                .join('')}
-          </AvatarFallback>
+        <Avatar>
+          <AvatarImage src={transaction.user?.image || ""} alt={userName} />
+          <AvatarFallback>{userInitials}</AvatarFallback>
         </Avatar>
         <div>
-          <div className="font-medium text-card-foreground">
-            {transaction?.user?.name}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {transaction.layananName} - {transaction.categoryName}
-          </div>
+          <div className="font-medium">{userName}</div>
+          <div className="text-sm text-muted-foreground">{transaction.merchantOrderId}</div>
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1">
-        <div className="font-medium text-card-foreground">
-          {FormatPrice(transaction.finalAmount)}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground">
-            {formatDate(transaction.createdAt)}
+      <div className="flex items-center gap-4">
+        <div className="text-right">
+          <div className="font-medium">{FormatPrice(transaction.finalAmount)}</div>
+          <div className="text-sm text-muted-foreground">
+            {format(new Date(transaction.createdAt), "dd MMM yyyy, HH:mm")}
           </div>
-          {transaction.paymentStatus === 'PAID' && (
-            <Badge className="bg-green-500">
-              <CheckCircle2 className="mr-1 h-3 w-3" />
-              Success
-            </Badge>
-          )}
-          {transaction.paymentStatus === 'PENDING' && (
-            <Badge
-              variant="outline"
-              className="text-yellow-500 border-yellow-500"
-            >
-              <Clock className="mr-1 h-3 w-3" />
-              Pending
-            </Badge>
-          )}
-          {transaction.paymentStatus === 'FAILED' && (
-            <Badge variant="destructive">
-              <XCircle className="mr-1 h-3 w-3" />
-              Failed
-            </Badge>
-          )}
         </div>
+        <Badge className={statusColors[status] || "bg-gray-100 text-gray-800"}>
+          {status.charAt(0).toUpperCase() + status.slice(1)}
+        </Badge>
       </div>
     </div>
-  );
+  )
 }
+

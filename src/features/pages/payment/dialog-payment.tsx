@@ -142,7 +142,7 @@ export function DialogPayment({ amount }: { amount: number }) {
       }
     } catch (err) {
       toast.error(`Payment error: ${err}`);
-      setError('Failed to initiate payment. Please try again.');
+      setError('Terjadi kesalahan. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +155,6 @@ export function DialogPayment({ amount }: { amount: number }) {
     (requiresValidation && isCheckingNickname) ||
     (requiresValidation && !nicknameData && !error);
 
-  console.log(selectPayment);
   return (
     <Dialog onOpenChange={(open) => setIsDialogOpen(open)}>
       <DialogTrigger asChild>
@@ -173,7 +172,7 @@ export function DialogPayment({ amount }: { amount: number }) {
             Complete Your Payment
           </DialogTitle>
           <DialogDescription className="text-blue-300 mt-1">
-            Secure transaction via Duitku
+       
           </DialogDescription>
         </DialogHeader>
 

@@ -52,7 +52,7 @@ export function TransactionDetails({
   };
 
   const timeRemaining = calculateTimeRemaining({ createdAt: data.createdAt });
-
+console.log(data,"data")
   return (
     <Card className="w-full max-w-4xl mx-auto shadow-md">
       <CardHeader className="pb-3 border-b">
@@ -162,12 +162,12 @@ export function TransactionDetails({
                     </div>
                     <div className="grid grid-cols-2 gap-y-2 text-sm">
                       <span className="font-medium">User ID:</span>
-                      <span>{data.accountId}</span>
+                      <span>{data.pembelian[0].accountID}</span>
 
-                      {data.serverId && (
+                      {data.pembelian[0].zone && (
                         <>
                           <span className="font-medium">Server ID:</span>
-                          <span>{data.serverId}</span>
+                          <span>{data.pembelian[0].zone}</span>
                         </>
                       )}
 

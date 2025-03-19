@@ -124,25 +124,25 @@ model  Berita  {
 }
 
 
-model Methods  {
-  id Int  @id  @default(autoincrement())
-  name String
-  images String
-  code  String  @db.VarChar(50)
-  paymentType  String?  @map("payment_type")
-  paymentCodeTripay  String?  @map("payment_code_tripay")
-  keterangan  String
-  typeTax  String?  
-  taxAdmin Int?  // Rp.4.250  //  Rp. 4.250  + 3 %
-  min  Int? //  min-amount  //10.000 etc
-  minExpired   Int?    @default(0)
-  maxExpired  Int?   @default(0)
-  max  Int?  //  max amount //15.000.000
-  type  String   @map("tipe")
-  createdAt   DateTime   @default(now())  @map("created_at")
-  updatedAt   DateTime  @default(now())  @map("updated_at")
-  @@map("methods")
-}
+  model Methods  {
+    id Int  @id  @default(autoincrement())
+    name String
+    images String
+    code  String  @db.VarChar(50) 
+    paymentType  String?  @map("payment_type")
+    paymentCodeTripay  String?  @map("payment_code_tripay")
+    keterangan  String
+    typeTax  String?  
+    taxAdmin Int?  // Rp.4.250  //  Rp. 4.250  + 3 %
+    min  Int? //  min-amount  //10.000 etc
+    minExpired   Int?    @default(0)
+    maxExpired  Int?   @default(0)
+    max  Int?  //  max amount //15.000.000
+    type  String   @map("tipe")
+    createdAt   DateTime   @default(now())  @map("created_at")
+    updatedAt   DateTime  @default(now())  @map("updated_at")
+    @@map("methods")
+  }
 
 model Layanan {
   id               Int      @id @default(autoincrement())

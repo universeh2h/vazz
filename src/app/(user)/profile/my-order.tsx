@@ -16,6 +16,7 @@ export function MyOrder(): JSX.Element {
   const [itemsPerPage, setItemsPerPage] = useState('10');
   const [searchQuery, setSearchQuery] = useState('');
 
+  
   return (
     <section className="py-10">
       <h3 className="text-2xl font-bold mb-4">Pesanan Saya</h3>
@@ -47,7 +48,7 @@ export function MyOrder(): JSX.Element {
           </div>
         </CardHeader>
         <CardContent>
-          <TableOrder />
+          <TableOrder search={searchQuery}/>
         </CardContent>
       </Card>
     </section>

@@ -12,6 +12,7 @@ interface CreatePayloadDuitku {
   productDetails: string;
   username: string;
   time: number;
+  returnUrl? : string
   sign: string;
 }
 export class Duitku {
@@ -23,6 +24,7 @@ export class Duitku {
     time,
     username,
     sign,
+    returnUrl
   }: CreatePayloadDuitku) {
     const duitkuPayload = {
       merchantCode: DUITKU_MERCHANT_CODE,
@@ -30,10 +32,9 @@ export class Duitku {
       paymentAmount: amount,
       paymentMethod: code,
       productDetails,
-      email: username + '@gmail.com',
       customerVaName: 'wafiuddin',
       callbackUrl: DUITKU_CALLBACK_URL,
-      returnUrl: DUITKU_RETURN_URL,
+      returnUrl: returnUrl  ?  returnUrl  : DUITKU_RETURN_URL,
       signature: sign,
       expiryPeriod: DUITKU_EXPIRY_PERIOD,
       additionalParam: '',

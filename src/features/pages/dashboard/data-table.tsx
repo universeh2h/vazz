@@ -37,35 +37,8 @@ import { Badge } from '@/components/ui/badge';
 import { trpc } from '@/utils/trpc';
 import { FormatPrice } from '@/utils/formatPrice';
 
-// Definisikan tipe data transaksi
-interface Transaction {
-  id: number;
-  merchantOrderId: string;
-  originalAmount: number;
-  discountAmount: number;
-  finalAmount: number;
-  paymentStatus: 'PAID' | 'PENDING' | 'FAILED';
-  paymentCode: string;
-  noWa: string;
-  createdAt: string;
-  updatedAt: string | null;
-  userId: string | null;
-  layananId: number | null;
-  categoryId: number | null;
-  layanan: {
-    layanan: string;
-  };
-  category: string;
-  invoice: {
-    invoiceNumber: string;
-    totalAmount: number;
-    status: 'PAID' | 'UNPAID' | 'CANCELLED';
-  }[];
-  transactionType: string;
-}
-
 // Kolom untuk tabel transaksi
-const columns: ColumnDef<Transaction>[] = [
+const columns: ColumnDef[] = [
   {
     accessorKey: 'id',
     header: 'ID',
@@ -79,19 +52,11 @@ const columns: ColumnDef<Transaction>[] = [
     ),
   },
   {
-    accessorKey: 'layanan',
-    header: 'Service',
+    accessorKey: 'transactionType',
+    header: 'Type',
     cell: ({ row }) => {
-      const serviceName = row.original.layananId || 'N/A';
-      return <div>{serviceName}</div>;
-    },
-  },
-  {
-    accessorKey: 'category',
-    header: 'Category',
-    cell: ({ row }) => {
-      const categoryName = row.original.categoryId || 'N/A';
-      return <div>{categoryName}</div>;
+      const type = row.getValue('transactionType');
+      return <div>{type || 'N/A'}</div>;
     },
   },
   {
@@ -99,7 +64,6 @@ const columns: ColumnDef<Transaction>[] = [
     header: 'Amount',
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('finalAmount'));
-
       return <div className="font-medium">{FormatPrice(amount)}</div>;
     },
   },
@@ -146,6 +110,14 @@ const columns: ColumnDef<Transaction>[] = [
     header: 'Payment Method',
   },
   {
+    accessorKey: 'noWa',
+    header: 'Phone Number',
+    cell: ({ row }) => {
+      const phone = row.getValue('noWa');
+      return <div>{phone || 'N/A'}</div>;
+    },
+  },
+  {
     accessorKey: 'createdAt',
     header: 'Date',
     cell: ({ row }) => {
@@ -172,13 +144,18 @@ const columns: ColumnDef<Transaction>[] = [
               <Eye className="mr-2 h-4 w-4" />
               View details
             </DropdownMenuItem>
-            {transaction.invoice.length > 0 && (
+            {transaction.invoice && transaction.invoice.length > 0 && (
               <DropdownMenuItem>
                 <FileText className="mr-2 h-4 w-4" />
                 View invoice
               </DropdownMenuItem>
             )}
-
+            {transaction.statusMessage && (
+              <DropdownMenuItem>
+                <FileText className="mr-2 h-4 w-4" />
+                View status message
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Download className="mr-2 h-4 w-4" />
@@ -202,13 +179,18 @@ export function DataTable({ status }: DataTableProps) {
     pageSize: 10,
   });
 
-  // Mengambil data dari API
+
+
   const {
     data: transactionData,
     isLoading,
     isError,
   } = trpc.transaction.getCalculatedTransaction.useQuery({
     status,
+  }, {
+    // Tambahkan refresh dan refetch options
+    refetchOnWindowFocus: false,
+    staleTime: 30000, // 30 detik
   });
 
   const table = useReactTable({
@@ -223,11 +205,20 @@ export function DataTable({ status }: DataTableProps) {
   });
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-pulse text-primary">Loading transaction data...</div>
+      </div>
+    );
   }
 
   if (isError) {
-    return <div>Error loading data.</div>;
+    return (
+      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+        <strong className="font-bold">Error!</strong>
+        <span className="block sm:inline"> Failed to load transaction data. Please try again later.</span>
+      </div>
+    );
   }
 
   return (
@@ -282,7 +273,7 @@ export function DataTable({ status }: DataTableProps) {
       </div>
       <div className="flex items-center justify-between space-x-2 py-4">
         <div className="text-sm text-muted-foreground">
-          Showing {table.getRowModel().rows.length} of {transactionData?.length}{' '}
+          Showing {table.getRowModel().rows.length} of {transactionData?.length || 0}{' '}
           transactions
         </div>
         <div className="flex items-center space-x-2">

@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import SidebarLink from '@/components/ui/sidebar-link';
 import { URL_LOGO } from '@/constants';
+import { trpc } from '@/utils/trpc';
 import {
   ArrowDown,
   Calculator,
@@ -11,6 +12,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
@@ -22,7 +24,7 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [openCalculator, setOpenCalculator] = useState(false);
-
+  const {data}  = trpc.member.findMe.useQuery()
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -141,18 +143,32 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               )}
             </div>
           </nav>
-        </div>
+           </div>
 
         {/* Sidebar footer */}
         <div className="p-4 border-t">
-          <Button
-            variant="outline"
-            className="w-full justify-start bg-white text-black"
-            size="sm"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Keluar
-          </Button>
+              {
+                data ? (
+                  <Button
+                  variant="outline"
+                  onClick={()  => signOut()}
+                  className="w-full justify-start bg-white text-black"
+                  size="sm"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Keluar
+                </Button>
+                )  : (
+                  <Button
+                  variant="outline"
+                  className="w-full justify-start bg-white text-black"
+                  size="sm"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Masuk
+                </Button>
+                )
+              }
         </div>
       </div>
     </div>

@@ -1,54 +1,90 @@
-'use client';
+"use client"
 
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts';
-
-// Sample data - replace with actual data from your API
-const data = [
-  { name: 'Success', value: 540, color: '#10b981' },
-  { name: 'Pending', value: 320, color: '#f59e0b' },
-  { name: 'Failed', value: 210, color: '#ef4444' },
-];
+import { useTheme } from "next-themes"
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import { trpc } from "@/utils/trpc"
+import { Skeleton } from "@/components/ui/skeleton"
+import { FormatPrice } from "@/utils/formatPrice"
 
 export function TransactionStatusChart() {
+  const { theme } = useTheme()
+  const { data, isLoading } = trpc.transaction.getTransactionStats.useQuery()
+
+  if (isLoading) {
+    return <Skeleton className="h-[300px] w-full" />
+  }
+
+  if (!data || !data.statusDistribution) {
+    return <div className="flex h-[300px] items-center justify-center">No data available</div>
+  }
+
+  // Filter out statuses with 0 count to avoid empty segments
+  const chartData = data.statusDistribution.filter((item) => item.count > 0)
+
+  // Define colors for each status
+  const statusColors = {
+    PENDING: "#FFA500", // Orange
+    PAID: "#3498db", // Blue
+    PROCCESS: "#9b59b6", // Purple
+    SUCCESS: "#2ecc71", // Green
+    FAILED: "#e74c3c", // Red
+  }
+
+  // Map status names to more readable labels
+  const statusLabels = {
+    PENDING: "PENDING",
+    PAID: "PAID",
+    PROCCESS: "PROCCESS",
+    SUCCESS: "SUCCESS",
+    FAILED: "FAILED",
+  }
+
+  // Format data for the chart
+  const formattedData = chartData.map((item) => ({
+    name: statusLabels[item.status as keyof typeof statusLabels] || item.status,
+    value: item.count,
+    amount: item.amount,
+    percentage: item.percentage.toFixed(1),
+  }))
+
+
+
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={data}
+            data={formattedData}
             cx="50%"
             cy="50%"
             innerRadius={60}
             outerRadius={80}
-            paddingAngle={5}
+            paddingAngle={2}
             dataKey="value"
-            label={({ name, percent }) =>
-              `${name} ${(percent * 100).toFixed(0)}%`
-            }
-            labelLine={false}
+            label={({ name, percentage }) => `${name}: ${percentage}%`}
+            labelLine={true}
           >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+            {formattedData.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={statusColors[entry.name as keyof typeof statusColors] || "#999999"}
+                stroke={theme === "dark" ? "#1e293b" : "#f8fafc"}
+                strokeWidth={2}
+              />
             ))}
           </Pie>
           <Tooltip
-            formatter={(value) => [`${value} transactions`, 'Count']}
-            contentStyle={{
-              backgroundColor: '#001f54',
-              borderColor: 'rgba(79, 156, 249, 0.2)',
+            formatter={(value, name, props) => {
+              if (name === "value") {
+                return [`${value} transactions`, "Count"]
+              }
+              return [FormatPrice(props.payload.amount), "Amount"]
             }}
-            itemStyle={{ color: '#f8fafc' }}
           />
           <Legend />
         </PieChart>
       </ResponsiveContainer>
     </div>
-  );
+  )
 }
+
